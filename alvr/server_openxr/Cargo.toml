@@ -7,3 +7,6 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+openxr = "0.21"
+alvr_common.workspace = true
+log = "0.4"
