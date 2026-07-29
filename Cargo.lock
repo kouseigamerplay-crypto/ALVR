@@ -5535,6 +5535,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "server_openxr"
+version = "21.0.0-dev12"
+
+[[package]]
 name = "settings-schema"
 version = "0.2.0"
 source = "git+https://github.com/alvr-org/settings-schema-rs?rev=676185f#676185f35869f05a90fcc81f66a4bbd9d86f9c12"
