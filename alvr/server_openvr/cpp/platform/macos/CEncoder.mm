@@ -30,7 +30,25 @@ void CompressionOutputCallback(
         return;
     }
 
-    std::fprintf(stderr, "[ALVR macOS] Frame encoded!\n");
+    CMBlockBufferRef blockBuffer =
+        CMSampleBufferGetDataBuffer(sampleBuffer);
+
+    if (blockBuffer == nullptr) {
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] Encoded sample has no CMBlockBuffer\n"
+        );
+        return;
+    }
+
+    const size_t encodedSize =
+        CMBlockBufferGetDataLength(blockBuffer);
+
+    std::fprintf(
+        stderr,
+        "[ALVR macOS] Frame encoded: %zu bytes\n",
+        encodedSize
+    );
 }
 }
 
