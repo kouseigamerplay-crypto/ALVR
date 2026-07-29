@@ -63,7 +63,7 @@ fn main() {
         path.extension()
             .filter(|ext| {
                 let ext_str = ext.to_string_lossy();
-                ext_str == "c" || ext_str == "cpp"
+                ext_str == "c" || ext_str == "cpp" || (platform_name == "macos" && ext_str == "mm")
             })
             .is_some()
     });
@@ -86,6 +86,12 @@ fn main() {
             .define("_MT", None);
     } else if platform_name == "macos" {
         build.define("__APPLE__", None);
+
+        println!("cargo:rustc-link-lib=framework=VideoToolbox");
+        println!("cargo:rustc-link-lib=framework=CoreMedia");
+        println!("cargo:rustc-link-lib=framework=CoreVideo");
+        println!("cargo:rustc-link-lib=framework=CoreFoundation");
+        println!("cargo:rustc-link-lib=framework=Metal");
     }
 
     #[cfg(debug_assertions)]
