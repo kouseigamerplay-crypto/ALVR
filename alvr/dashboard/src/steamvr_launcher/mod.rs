@@ -1,3 +1,6 @@
+#[cfg(target_os = "macos")]
+mod macos_steamvr;
+
 #[cfg(target_os = "linux")]
 mod linux_steamvr;
 #[cfg(windows)]
@@ -123,7 +126,7 @@ impl Launcher {
 
         #[cfg(target_os = "macos")]
         {
-            error!("SteamVR launching is not implemented on macOS yet.");
+            macos_steamvr::launch_steamvr();
             return;
         }
 
