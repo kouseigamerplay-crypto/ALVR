@@ -125,87 +125,88 @@ impl Launcher {
         }
 
         #[cfg(target_os = "macos")]
+        macos_steamvr::launch_steamvr();
+
+        #[cfg(not(target_os = "macos"))]
         {
-            macos_steamvr::launch_steamvr();
-            return;
-        }
+            #[cfg(target_os = "linux")]
+            linux_steamvr::linux_hardware_checks();
 
-        #[cfg(target_os = "linux")]
-        linux_steamvr::linux_hardware_checks();
+            let alvr_driver_dir = crate::get_filesystem_layout().openvr_driver_root_dir;
 
-        let alvr_driver_dir = crate::get_filesystem_layout().openvr_driver_root_dir;
+            // Make sure to unregister any other ALVR driver because it would cause a socket conflict
+            let other_alvr_dirs = alvr_server_io::get_registered_drivers()
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|path| {
+                    path.to_string_lossy().to_lowercase().contains("alvr")
+                        && *path != alvr_driver_dir
+                })
+                .collect::<Vec<_>>();
+            alvr_server_io::driver_registration(&other_alvr_dirs, false).ok();
 
-        // Make sure to unregister any other ALVR driver because it would cause a socket conflict
-        let other_alvr_dirs = alvr_server_io::get_registered_drivers()
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|path| {
-                path.to_string_lossy().to_lowercase().contains("alvr") && *path != alvr_driver_dir
-            })
-            .collect::<Vec<_>>();
-        alvr_server_io::driver_registration(&other_alvr_dirs, false).ok();
+            alvr_server_io::driver_registration(&[alvr_driver_dir], true).ok();
 
-        alvr_server_io::driver_registration(&[alvr_driver_dir], true).ok();
-
-        if let Err(err) = unblock_alvr_driver() {
-            warn!("Failed to unblock ALVR driver: {:?}", err);
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            let vrcompositor_wrap_result = linux_steamvr::maybe_wrap_vrcompositor_launcher();
-            alvr_common::show_err(linux_steamvr::maybe_wrap_vrcompositor_launcher());
-            if vrcompositor_wrap_result.is_err() {
-                return;
+            if let Err(err) = unblock_alvr_driver() {
+                warn!("Failed to unblock ALVR driver: {:?}", err);
             }
-        }
-
-        if is_steamvr_running() {
-            return;
-        }
-
-        debug!("SteamVR is dead. Launching...");
-
-        if data_sources::get_read_only_local_session()
-            .settings()
-            .extra
-            .steamvr_launcher
-            .direct_launch
-        {
-            let start_script = afs::filesystem_layout_invalid().server_start_script();
-
-            if start_script.exists() {
-                debug!("Running VR server start script: {}", start_script.display());
-
-                if let Err(e) = Command::new(&start_script).spawn() {
-                    error!("Failed to run VR server start script: {e}");
-                }
-            } else if let Ok(steamvr_bin_dir) =
-                alvr_server_io::steamvr_root_dir().map(|root| root.join("bin"))
-            {
-                let steamvr_path = if cfg!(windows) {
-                    steamvr_bin_dir.join("win64").join("vrstartup.exe")
-                } else {
-                    steamvr_bin_dir.join("vrmonitor.sh")
-                };
-
-                debug!("Launching SteamVR from path: {}", steamvr_path.display());
-
-                if let Err(e) = Command::new(&steamvr_path).spawn() {
-                    error!(
-                        "Failed to run SteamVR from automatically detected path {} with error: {e}",
-                        steamvr_path.display()
-                    );
-                }
-            } else {
-                error!("Failed to find SteamVR files to directly launch SteamVR");
-            }
-        } else {
-            #[cfg(windows)]
-            windows_steamvr::launch_steamvr_with_steam();
 
             #[cfg(target_os = "linux")]
-            linux_steamvr::launch_steamvr_with_steam();
+            {
+                let vrcompositor_wrap_result = linux_steamvr::maybe_wrap_vrcompositor_launcher();
+                alvr_common::show_err(linux_steamvr::maybe_wrap_vrcompositor_launcher());
+                if vrcompositor_wrap_result.is_err() {
+                    return;
+                }
+            }
+
+            if is_steamvr_running() {
+                return;
+            }
+
+            debug!("SteamVR is dead. Launching...");
+
+            if data_sources::get_read_only_local_session()
+                .settings()
+                .extra
+                .steamvr_launcher
+                .direct_launch
+            {
+                let start_script = afs::filesystem_layout_invalid().server_start_script();
+
+                if start_script.exists() {
+                    debug!("Running VR server start script: {}", start_script.display());
+
+                    if let Err(e) = Command::new(&start_script).spawn() {
+                        error!("Failed to run VR server start script: {e}");
+                    }
+                } else if let Ok(steamvr_bin_dir) =
+                    alvr_server_io::steamvr_root_dir().map(|root| root.join("bin"))
+                {
+                    let steamvr_path = if cfg!(windows) {
+                        steamvr_bin_dir.join("win64").join("vrstartup.exe")
+                    } else {
+                        steamvr_bin_dir.join("vrmonitor.sh")
+                    };
+
+                    debug!("Launching SteamVR from path: {}", steamvr_path.display());
+
+                    if let Err(e) = Command::new(&steamvr_path).spawn() {
+                        error!(
+                            "Failed to run SteamVR from automatically detected path {} with error: {e}",
+                            steamvr_path.display()
+                        );
+                    }
+                } else {
+                    error!("Failed to find SteamVR files to directly launch SteamVR");
+                }
+            } else {
+                #[cfg(windows)]
+                windows_steamvr::launch_steamvr_with_steam();
+
+                #[cfg(target_os = "linux")]
+                linux_steamvr::launch_steamvr_with_steam();
+            }
         }
     }
 
