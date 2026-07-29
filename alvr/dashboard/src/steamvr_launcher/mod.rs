@@ -121,6 +121,12 @@ impl Launcher {
             adb::kill_server(&path).ok();
         }
 
+        #[cfg(target_os = "macos")]
+        {
+            error!("SteamVR launching is not implemented on macOS yet.");
+            return;
+        }
+
         #[cfg(target_os = "linux")]
         linux_steamvr::linux_hardware_checks();
 
