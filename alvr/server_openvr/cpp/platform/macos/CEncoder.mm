@@ -4,10 +4,34 @@
 #include <CoreVideo/CoreVideo.h>
 
 #include <cstdio>
+#include <cstring>
 
 namespace {
 constexpr int kProbeWidth = 1280;
 constexpr int kProbeHeight = 720;
+
+void CompressionOutputCallback(
+    void *outputCallbackRefCon,
+    void *sourceFrameRefCon,
+    OSStatus status,
+    VTEncodeInfoFlags infoFlags,
+    CMSampleBufferRef sampleBuffer
+) {
+    (void)outputCallbackRefCon;
+    (void)sourceFrameRefCon;
+    (void)infoFlags;
+
+    if (status != noErr || sampleBuffer == nullptr) {
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] Encode failed (%d)\n",
+            static_cast<int>(status)
+        );
+        return;
+    }
+
+    std::fprintf(stderr, "[ALVR macOS] Frame encoded!\n");
+}
 }
 
 CEncoder::CEncoder() = default;
@@ -29,7 +53,7 @@ bool CEncoder::Init() {
         nullptr,
         nullptr,
         nullptr,
-        nullptr,
+        CompressionOutputCallback,
         this,
         &m_compressionSession
     );
@@ -91,4 +115,66 @@ void CEncoder::WaitForEncode() {
 }
 
 void CEncoder::CaptureFrame() {
+    if (!Init()) {
+        return;
+    }
+
+    CVPixelBufferRef pixelBuffer = nullptr;
+
+    const OSStatus createStatus = CVPixelBufferCreate(
+        kCFAllocatorDefault,
+        kProbeWidth,
+        kProbeHeight,
+        kCVPixelFormatType_32BGRA,
+        nullptr,
+        &pixelBuffer
+    );
+
+    if (createStatus != kCVReturnSuccess || pixelBuffer == nullptr) {
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] CVPixelBufferCreate failed (%d)\n",
+            static_cast<int>(createStatus)
+        );
+        return;
+    }
+
+    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+
+    void *baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer);
+    const size_t dataSize = CVPixelBufferGetDataSize(pixelBuffer);
+
+    if (baseAddress != nullptr) {
+        std::memset(baseAddress, 0, dataSize);
+    }
+
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+
+    const CMTime presentationTime = CMTimeMake(0, 1);
+
+    const OSStatus encodeStatus = VTCompressionSessionEncodeFrame(
+        m_compressionSession,
+        pixelBuffer,
+        presentationTime,
+        kCMTimeInvalid,
+        nullptr,
+        nullptr,
+        nullptr
+    );
+
+    CVPixelBufferRelease(pixelBuffer);
+
+    if (encodeStatus != noErr) {
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] VTCompressionSessionEncodeFrame failed (%d)\n",
+            static_cast<int>(encodeStatus)
+        );
+        return;
+    }
+
+    VTCompressionSessionCompleteFrames(
+        m_compressionSession,
+        kCMTimeInvalid
+    );
 }
