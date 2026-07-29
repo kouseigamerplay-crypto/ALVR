@@ -5,6 +5,8 @@
 
 #include <cstdio>
 #include <cstring>
+#include <vector>
+#include <utility>
 
 namespace {
 constexpr int kProbeWidth = 1280;
@@ -128,10 +130,50 @@ void CompressionOutputCallback(
         "[ALVR macOS] Parsed %zu NAL unit(s)\n",
         nalIndex
     );
+
+    std::vector<uint8_t> annexB;
+
+    offset = 0;
+
+    while (offset + 4 <= totalLength) {
+        const uint32_t nalLength =
+            (static_cast<uint32_t>(bytes[offset]) << 24) |
+            (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+            (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+            static_cast<uint32_t>(bytes[offset + 3]);
+
+        offset += 4;
+
+        if (nalLength == 0 || offset + nalLength > totalLength) {
+            break;
+        }
+
+        annexB.push_back(0x00);
+        annexB.push_back(0x00);
+        annexB.push_back(0x00);
+        annexB.push_back(0x01);
+
+        annexB.insert(
+            annexB.end(),
+            bytes + offset,
+            bytes + offset + nalLength
+        );
+
+        offset += nalLength;
+    }
+
+    std::fprintf(
+        stderr,
+        "[ALVR macOS] Annex B size: %zu bytes\n",
+        annexB.size()
+    );
 }
 }
 
-CEncoder::CEncoder() = default;
+CEncoder::CEncoder(std::shared_ptr<PoseHistory> poseHistory)
+    : m_poseHistory(std::move(poseHistory))
+{
+}
 
 CEncoder::~CEncoder() {
     Stop();
