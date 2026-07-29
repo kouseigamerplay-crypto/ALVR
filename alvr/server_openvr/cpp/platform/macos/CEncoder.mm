@@ -49,6 +49,85 @@ void CompressionOutputCallback(
         "[ALVR macOS] Frame encoded: %zu bytes\n",
         encodedSize
     );
+
+    char *dataPointer = nullptr;
+    size_t totalLength = 0;
+
+    const OSStatus bufferStatus = CMBlockBufferGetDataPointer(
+        blockBuffer,
+        0,
+        nullptr,
+        &totalLength,
+        &dataPointer
+    );
+
+    if (bufferStatus != kCMBlockBufferNoErr || dataPointer == nullptr) {
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] Failed to access encoded data (%d)\n",
+            static_cast<int>(bufferStatus)
+        );
+        return;
+    }
+
+    std::fprintf(
+        stderr,
+        "[ALVR macOS] Raw encoded buffer: %zu bytes\n",
+        totalLength
+    );
+
+    const uint8_t *bytes =
+        reinterpret_cast<const uint8_t *>(dataPointer);
+
+    size_t offset = 0;
+    size_t nalIndex = 0;
+
+    while (offset + 4 <= totalLength) {
+        const uint32_t nalLength =
+            (static_cast<uint32_t>(bytes[offset]) << 24) |
+            (static_cast<uint32_t>(bytes[offset + 1]) << 16) |
+            (static_cast<uint32_t>(bytes[offset + 2]) << 8) |
+            static_cast<uint32_t>(bytes[offset + 3]);
+
+        offset += 4;
+
+        if (nalLength == 0 || offset + nalLength > totalLength) {
+            std::fprintf(
+                stderr,
+                "[ALVR macOS] Invalid NAL length at offset %zu: %u bytes\n",
+                offset - 4,
+                nalLength
+            );
+            return;
+        }
+
+        const uint8_t nalType = bytes[offset] & 0x1F;
+
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] NAL #%zu: type=%u length=%u bytes\n",
+            nalIndex,
+            static_cast<unsigned>(nalType),
+            nalLength
+        );
+
+        offset += nalLength;
+        ++nalIndex;
+    }
+
+    if (offset != totalLength) {
+        std::fprintf(
+            stderr,
+            "[ALVR macOS] Trailing encoded bytes: %zu\n",
+            totalLength - offset
+        );
+    }
+
+    std::fprintf(
+        stderr,
+        "[ALVR macOS] Parsed %zu NAL unit(s)\n",
+        nalIndex
+    );
 }
 }
 
