@@ -6,7 +6,11 @@ rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
 openxr = "0.21"
+openxr-sys = "0.13"
 alvr_common.workspace = true
 log = "0.4"
